@@ -1,0 +1,118 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* ドットグリッド背景 */
+.dot-grid {
+  background-color: #f1f5f9;
+  background-image: radial-gradient(circle, #cbd5e1 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+
+/* プレミアムカード */
+.premium-card {
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.98);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.04);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+.premium-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 36px -6px rgba(79, 70, 229, 0.13), 0 4px 12px rgba(0, 0, 0, 0.06);
+}
+
+/* サイドバーナビアイテム */
+.nav-item {
+  position: relative;
+  overflow: hidden;
+}
+.nav-item::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 20%;
+  height: 60%;
+  width: 2.5px;
+  background: #818cf8;
+  border-radius: 0 2px 2px 0;
+  transform: scaleY(0);
+  opacity: 0;
+  transition: transform 0.18s ease, opacity 0.18s ease;
+}
+.nav-item:hover::after {
+  transform: scaleY(1);
+  opacity: 0.7;
+}
+.nav-item.active::after {
+  transform: scaleY(1);
+  opacity: 1;
+}
+
+/* KPI未達の警告バー。目立たせるため点滅させる。
+   透明にはせず背景と枠線だけ振らせている（文字が読めなくなるのを避けるため）。
+   モーションを減らす設定の端末では点滅を止める */
+@keyframes kpi-alert-blink {
+  0%, 100% {
+    background-color: #fff1f2;
+    border-color: #fecdd3;
+    box-shadow: none;
+  }
+  50% {
+    background-color: #fca5a5;
+    border-color: #dc2626;
+    box-shadow: 0 3px 14px rgba(220, 38, 38, 0.4);
+  }
+}
+.kpi-alert-blink {
+  animation: kpi-alert-blink 0.85s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .kpi-alert-blink { animation: none; }
+}
+
+/* iOSの入力時オートズーム対策。
+   入力欄のフォントが16px未満だと Safari が勝手に画面を拡大する。
+   個別に text-sm を書き換えると80箇所に散るのでここで一括して16pxにしている。
+   スマホ幅にしか当たらないのでPCの見た目は変わらない */
+@media (max-width: 767px) {
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
+/* 指で押す主要ボタン用。スマホだけ推奨タップ領域の44pxを確保する。
+   text-xs/py-1.5 のままだと高さ30px程度で押しにくいのを、
+   クラス名を全部書き換えずに底上げするためのもの。PCの見た目は変わらない */
+@media (max-width: 767px) {
+  .tap-target {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+/* スクロールバー */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(100, 116, 139, 0.25); border-radius: 9999px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(79, 70, 229, 0.4); }
