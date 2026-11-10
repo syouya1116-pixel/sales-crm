@@ -7,6 +7,7 @@ import { useSession, signOut } from 'next-auth/react'
 import { SendHorizonal, Upload, LogOut, User, LayoutDashboard, BarChart2, CheckSquare, Calendar, Settings, TrendingUp, NotebookPen } from 'lucide-react'
 import { emailToName } from '@/lib/emailToName'
 import { supabase } from '@/lib/supabase'
+import { useSiteSettings } from './SiteSettingsProvider'
 
 const navItems = [
   { href: '/', label: '顧客一覧', icon: LayoutDashboard },
@@ -23,6 +24,8 @@ export default function Sidebar({ open, onClose }: { open: boolean; onClose: () 
   const pathname = usePathname()
   const { data: session } = useSession()
   const [isAdmin, setIsAdmin] = useState(false)
+  const { settings } = useSiteSettings()
+  const visibleNav = navItems.filter(n => !settings.hiddenMenus.includes(n.href))
 
   useEffect(() => {
     if (!session?.user?.email) return
@@ -45,18 +48,18 @@ export default function Sidebar({ open, onClose }: { open: boolean; onClose: () 
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0 ring-1 ring-white/10">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo.svg" alt="ロゴ" className="w-full h-full object-contain" />
+            <img src={settings.logoDataUrl || '/logo.svg'} alt="ロゴ" className="w-full h-full object-contain" />
           </div>
-          <div>
-            <p className="text-slate-100 font-bold text-xs leading-tight tracking-wide">さんぷる</p>
-            <p className="text-indigo-400 text-[10px] leading-tight font-medium tracking-widest uppercase">CRM</p>
+          <div className="min-w-0">
+            <p className="text-slate-100 font-bold text-xs leading-tight tracking-wide truncate">{settings.companyName}</p>
+            <p className="text-indigo-400 text-[10px] leading-tight font-medium tracking-widest uppercase truncate">{settings.systemName}</p>
           </div>
         </div>
       </div>
 
       {/* ナビ */}
       <nav className="flex-1 px-3 py-4 space-y-0.5">
-        {navItems.map(({ href, label, icon: Icon }) => {
+        {visibleNav.map(({ href, label, icon: Icon }) => {
           const active = pathname === href
           return (
             <Link

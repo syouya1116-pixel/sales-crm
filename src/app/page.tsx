@@ -13,6 +13,8 @@ import { Company, Status } from '@/types'
 import { Plus, Search, Phone, Mail, Globe, RefreshCw, Building2, CheckSquare, Square, Trash2, NotebookPen } from 'lucide-react'
 import Link from 'next/link'
 import { ACCOUNT_ORDER } from '@/config/team'
+import { LIST_COLUMNS, type ListColumnKey } from '@/lib/siteSettings'
+import { useSiteSettings } from '@/components/SiteSettingsProvider'
 
 type Task = {
   id: string
@@ -57,6 +59,7 @@ const sortByAccountOrder = (a: string, b: string) => {
 export default function Home() {
   const { data: session } = useSession()
   const router = useRouter()
+  const { settings: siteSettings } = useSiteSettings()
   const [companies, setCompanies] = useState<Company[]>([])
   const [statuses, setStatuses] = useState<Status[]>([])
   const [search, setSearch] = useState('')
@@ -221,15 +224,18 @@ export default function Home() {
       return
     }
 
-    // 検索なし・フィルターなし → 最新50件のみ（countなし）
+    // 検索なし・フィルターなし → 最新50件のみ。件数は行を取らない head クエリで別に数える
     if (!statusFilter) {
-      const { data } = await supabase
-        .from('companies')
-        .select(`*, statuses(id, name), sales_reps(id, name), company_urls(*), company_phones(*), company_emails(*)`)
-        .order('updated_at', { ascending: false })
-        .limit(PAGE_SIZE)
+      const [{ data }, { count }] = await Promise.all([
+        supabase
+          .from('companies')
+          .select(`*, statuses(id, name), sales_reps(id, name), company_urls(*), company_phones(*), company_emails(*)`)
+          .order('updated_at', { ascending: false })
+          .limit(PAGE_SIZE),
+        supabase.from('companies').select('id', { count: 'exact', head: true }),
+      ])
       if (data) setCompanies(data)
-      setTotalCount(0)
+      setTotalCount(count ?? 0)
       setLoading(false)
       return
     }
@@ -327,6 +333,59 @@ export default function Home() {
   const formatDate = (dateStr: string) => {
     const d = new Date(dateStr)
     return `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`
+  }
+
+  // PC表示の列（デモでは設定画面で表示・順番を変えられる。通常は全列を既定の順で出す）
+  const visibleColumns = siteSettings.listColumns.filter(c => c.visible).map(c => c.key)
+  const tableMinWidth = 220 + visibleColumns.reduce((sum, k) => sum + LIST_COLUMNS[k].width, 0)
+  const renderCell = (c: Company, key: ListColumnKey) => {
+    const dash = <span className="text-slate-300">—</span>
+    switch (key) {
+      case 'status':
+        return c.statuses && (
+          <span className={`inline-block text-xs px-2.5 py-1 rounded-full font-medium ${statusColor(c.statuses.name)}`}>
+            {c.statuses.name}
+          </span>
+        )
+      case 'service':
+        return <span className="block text-sm text-slate-500 truncate">{c.service_name || dash}</span>
+      case 'contact':
+        return (
+          <div className="flex flex-col gap-1">
+            {c.company_phones?.[0] && (
+              <span className="flex items-center gap-1.5 text-xs text-slate-500 truncate">
+                <Phone size={11} className="text-slate-300 shrink-0" />{c.company_phones[0].phone}
+              </span>
+            )}
+            {c.company_emails?.[0] && (
+              <span className="flex items-center gap-1.5 text-xs text-slate-500 truncate">
+                <Mail size={11} className="text-slate-300 shrink-0" />{c.company_emails[0].email}
+              </span>
+            )}
+            {c.company_urls?.[0] && (
+              <span className="flex items-center gap-1.5 text-xs">
+                <Globe size={11} className="text-slate-300" />
+                <a href={c.company_urls[0].url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="text-blue-400 hover:underline truncate max-w-[140px]">
+                  {c.company_urls[0].url.replace(/^https?:\/\//, '')}
+                </a>
+              </span>
+            )}
+          </div>
+        )
+      case 'rep': {
+        const color = c.sales_rep_id ? siteSettings.teamColors[c.sales_rep_id] : undefined
+        return c.sales_reps?.name ? (
+          <span className="flex items-center gap-1.5 text-sm text-slate-500 min-w-0">
+            {color && <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} />}
+            <span className="truncate">{c.sales_reps.name}</span>
+          </span>
+        ) : dash
+      }
+      case 'lastSent':
+        return <span className="text-xs text-slate-400">{c.last_emailed_at ? formatDate(c.last_emailed_at) : dash}</span>
+      case 'updated':
+        return <span className="text-xs text-slate-400">{formatDate(c.updated_at)}</span>
+    }
   }
 
   const todayISO = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` })()
@@ -657,16 +716,13 @@ export default function Home() {
 
             {/* PC向けのテーブル。中途半端な幅でも列が切れないよう横スクロールを許す */}
             <div className="hidden lg:block overflow-x-auto">
-              <table className="w-full table-fixed min-w-[1020px]">
+              <table className="w-full table-fixed" style={{ minWidth: tableMinWidth }}>
                 <thead>
                   <tr className="bg-slate-50/80 border-b border-slate-200">
                     <th className="text-left text-xs font-semibold text-slate-400 px-5 py-3.5 uppercase tracking-wider w-[220px]">会社名</th>
-                    <th className="text-left text-xs font-semibold text-slate-400 px-4 py-3.5 uppercase tracking-wider w-[120px]">ステータス</th>
-                    <th className="text-left text-xs font-semibold text-slate-400 px-4 py-3.5 uppercase tracking-wider w-[160px]">サービス名</th>
-                    <th className="text-left text-xs font-semibold text-slate-400 px-4 py-3.5 uppercase tracking-wider w-[220px]">連絡先</th>
-                    <th className="text-left text-xs font-semibold text-slate-400 px-4 py-3.5 uppercase tracking-wider w-[90px]">担当</th>
-                    <th className="text-left text-xs font-semibold text-slate-400 px-4 py-3.5 uppercase tracking-wider w-[110px]">最終送信</th>
-                    <th className="text-left text-xs font-semibold text-slate-400 px-4 py-3.5 uppercase tracking-wider w-[100px]">更新日</th>
+                    {visibleColumns.map(k => (
+                      <th key={k} style={{ width: LIST_COLUMNS[k].width }} className="text-left text-xs font-semibold text-slate-400 px-4 py-3.5 uppercase tracking-wider">{LIST_COLUMNS[k].label}</th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -680,39 +736,7 @@ export default function Home() {
                           <div className="text-xs text-slate-400 mt-0.5 truncate">{c.representative_name}</div>
                         )}
                       </td>
-                      <td className="px-4 py-3.5">
-                        {c.statuses && (
-                          <span className={`inline-block text-xs px-2.5 py-1 rounded-full font-medium ${statusColor(c.statuses.name)}`}>
-                            {c.statuses.name}
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3.5 text-sm text-slate-500 truncate">{c.service_name || <span className="text-slate-300">—</span>}</td>
-                      <td className="px-4 py-3.5">
-                        <div className="flex flex-col gap-1">
-                          {c.company_phones?.[0] && (
-                            <span className="flex items-center gap-1.5 text-xs text-slate-500 truncate">
-                              <Phone size={11} className="text-slate-300 shrink-0" />{c.company_phones[0].phone}
-                            </span>
-                          )}
-                          {c.company_emails?.[0] && (
-                            <span className="flex items-center gap-1.5 text-xs text-slate-500 truncate">
-                              <Mail size={11} className="text-slate-300 shrink-0" />{c.company_emails[0].email}
-                            </span>
-                          )}
-                          {c.company_urls?.[0] && (
-                            <span className="flex items-center gap-1.5 text-xs">
-                              <Globe size={11} className="text-slate-300" />
-                              <a href={c.company_urls[0].url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="text-blue-400 hover:underline truncate max-w-[140px]">
-                                {c.company_urls[0].url.replace(/^https?:\/\//, '')}
-                              </a>
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3.5 text-sm text-slate-500">{c.sales_reps?.name || <span className="text-slate-300">—</span>}</td>
-                      <td className="px-4 py-3.5 text-xs text-slate-400">{c.last_emailed_at ? formatDate(c.last_emailed_at) : <span className="text-slate-300">—</span>}</td>
-                      <td className="px-4 py-3.5 text-xs text-slate-400">{formatDate(c.updated_at)}</td>
+                      {visibleColumns.map(k => <td key={k} className="px-4 py-3.5">{renderCell(c, k)}</td>)}
                     </tr>
                   ))}
                 </tbody>

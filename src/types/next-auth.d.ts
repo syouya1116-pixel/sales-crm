@@ -20,5 +20,7 @@ declare module 'next-auth' {
 declare module 'next-auth/jwt' {
   interface JWT {
     role?: 'staff' | 'google'
+    /** デモの管理者ログイン（Google のトークンを持たない） */
+    demo?: boolean
   }
 }

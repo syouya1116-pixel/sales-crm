@@ -2,9 +2,13 @@
 
 import { useState } from 'react'
 import { signIn } from 'next-auth/react'
+import { IS_DEMO, DEMO_ADMIN_EMAIL, DEMO_STAFF_LOGIN_ID, DEMO_STAFF_PASSWORD } from '@/lib/demo'
+import { emailToName } from '@/lib/emailToName'
+import { useSiteSettings } from '@/components/SiteSettingsProvider'
 
 export default function LoginPage() {
   const [mode, setMode] = useState<'admin' | 'staff'>('admin')
+  const { settings } = useSiteSettings()
 
   // 管理者(Google)用：サイトパスワード確認
   const [password, setPassword] = useState('')
@@ -17,6 +21,23 @@ export default function LoginPage() {
   const [staffPassword, setStaffPassword] = useState('')
   const [staffError, setStaffError] = useState('')
   const [staffLoading, setStaffLoading] = useState(false)
+
+  // デモ：ワンクリックでログイン
+  const [demoLoading, setDemoLoading] = useState<'' | 'admin' | 'staff'>('')
+  const handleDemoAdmin = async () => {
+    setDemoLoading('admin')
+    await signIn('demo', { callbackUrl: '/' })
+  }
+  const handleDemoStaff = async () => {
+    setDemoLoading('staff')
+    const res = await signIn('staff', { loginId: DEMO_STAFF_LOGIN_ID, password: DEMO_STAFF_PASSWORD, redirect: false })
+    if (res?.error) {
+      setStaffError('デモ用スタッフでログインできませんでした。時間をおいてお試しください')
+      setDemoLoading('')
+    } else {
+      window.location.href = '/staff'
+    }
+  }
 
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -52,10 +73,38 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
       <div className="bg-white rounded-xl border border-gray-200 p-10 text-center shadow-sm w-full max-w-sm">
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">さんぷる</h1>
-        <p className="text-sm text-gray-500 mb-8">メール管理システム</p>
+        {IS_DEMO && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={settings.logoDataUrl || '/logo.svg'} alt="ロゴ" className="w-12 h-12 mx-auto mb-3 rounded-xl object-contain" />
+        )}
+        <h1 className="text-2xl font-bold text-gray-900 mb-2 break-words">{IS_DEMO ? settings.companyName : 'さんぷる'}</h1>
+        <p className="text-sm text-gray-500 mb-8">{IS_DEMO ? settings.systemName : 'メール管理システム'}</p>
 
-        {mode === 'admin' ? (
+        {IS_DEMO ? (
+          <div className="space-y-3 text-left">
+            <p className="text-xs text-gray-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 leading-relaxed">
+              デモ環境です。会社・人物・連絡先はすべて架空のデータで、毎日初期化されます。メールの送信やカレンダー登録は実際には行われません。
+            </p>
+            <button
+              onClick={handleDemoAdmin}
+              disabled={!!demoLoading}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-3 text-sm font-medium transition disabled:opacity-50"
+            >
+              {demoLoading === 'admin' ? 'ログイン中...' : `管理者としてログイン（${emailToName(DEMO_ADMIN_EMAIL)}）`}
+            </button>
+            <button
+              onClick={handleDemoStaff}
+              disabled={!!demoLoading}
+              className="w-full border border-indigo-200 text-indigo-700 hover:bg-indigo-50 rounded-lg px-4 py-3 text-sm font-medium transition disabled:opacity-50"
+            >
+              {demoLoading === 'staff' ? 'ログイン中...' : '業務委託スタッフとしてログイン'}
+            </button>
+            {staffError && <p className="text-xs text-red-500">{staffError}</p>}
+            <p className="text-[11px] text-gray-400 leading-relaxed pt-1">
+              本番では、管理者は合言葉＋Googleアカウント、スタッフは発行したIDとパスワードでログインします。
+            </p>
+          </div>
+        ) : mode === 'admin' ? (
           <>
             {!verified ? (
               <form onSubmit={handleVerify} className="space-y-4">

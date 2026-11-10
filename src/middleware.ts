@@ -28,8 +28,10 @@ export default auth((req) => {
   const isAuthApi = nextUrl.pathname.startsWith('/api/auth')
   // n8n の毎朝の日報。ログインの代わりにルート側でトークンを見る（KPI_REPORT_TOKEN）
   const isReportApi = nextUrl.pathname.startsWith('/api/report/')
+  // デモの毎日の初期化。ルート側で CRON_SECRET を見る（デモ以外では 404）
+  const isDemoResetApi = nextUrl.pathname === '/api/demo/reset'
 
-  if (isAuthApi || isReportApi) return NextResponse.next()
+  if (isAuthApi || isReportApi || isDemoResetApi) return NextResponse.next()
 
   if (!isLoggedIn && !isLoginPage) {
     return NextResponse.redirect(new URL('/login', nextUrl))

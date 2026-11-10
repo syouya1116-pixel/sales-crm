@@ -3,6 +3,7 @@ import { google } from 'googleapis'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { requireAuth } from '@/lib/requireAuth'
 import { emailToName } from '@/lib/emailToName'
+import { IS_DEMO, demoExternalId } from '@/lib/demo'
 
 function makeRawEmail(to: string, subject: string, body: string, from: string) {
   const name = emailToName(from)
@@ -26,7 +27,7 @@ export const maxDuration = 60
 export async function POST(req: NextRequest) {
   const { error, session } = await requireAuth()
   if (error) return error
-  if (!session?.accessToken) return NextResponse.json({ error: 'ログインが必要です' }, { status: 401 })
+  if (!IS_DEMO && !session?.accessToken) return NextResponse.json({ error: 'ログインが必要です' }, { status: 401 })
 
   const { targets, proposalProductId } = await req.json()
   // targets: { companyId, companyEmailId, email, subject, body, statusName }[]
@@ -35,24 +36,31 @@ export async function POST(req: NextRequest) {
   const sentStatusId = sentStatus?.id || null
 
   const oauth2Client = new google.auth.OAuth2()
-  oauth2Client.setCredentials({ access_token: session.accessToken })
+  if (!IS_DEMO) oauth2Client.setCredentials({ access_token: session!.accessToken })
   const gmail = google.gmail({ version: 'v1', auth: oauth2Client })
 
   const results = []
   for (const target of targets) {
     try {
-      const raw = makeRawEmail(target.email, target.subject, target.body, session.user?.email || '')
-      const result = await gmail.users.messages.send({
-        userId: 'me',
-        requestBody: { raw },
-      })
+      // デモでは実際には送らず、送ったことにして履歴だけ残す
+      let messageId: string | null
+      if (IS_DEMO) {
+        messageId = demoExternalId('mail')
+      } else {
+        const raw = makeRawEmail(target.email, target.subject, target.body, session!.user?.email || '')
+        const result = await gmail.users.messages.send({
+          userId: 'me',
+          requestBody: { raw },
+        })
+        messageId = result.data.id || null
+      }
 
       await supabaseAdmin.from('email_logs').insert({
         company_id: target.companyId,
         company_email_id: target.companyEmailId || null,
         subject: target.subject,
         sent_by: session.user?.email || null,
-        gmail_message_id: result.data.id || null,
+        gmail_message_id: messageId,
         // どの商材で送ったかはテンプレートだけが知っている。
         // 紐づいていなければ「不明」のまま残すこと。
         // 顧客の持ち商材から推定すると、別商材で送ったぶんが
@@ -74,8 +82,8 @@ export async function POST(req: NextRequest) {
 
       results.push({ email: target.email, success: true })
 
-      // Gmailの送信制限対策（1秒待機）
-      await new Promise(r => setTimeout(r, 1000))
+      // Gmailの送信制限対策（1秒待機）。デモは送らないので短く
+      await new Promise(r => setTimeout(r, IS_DEMO ? 100 : 1000))
     } catch {
       results.push({ email: target.email, success: false })
     }

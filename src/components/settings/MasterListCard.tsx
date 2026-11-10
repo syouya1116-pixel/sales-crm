@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { GripVertical, Plus, Trash2 } from 'lucide-react'
+import { Check, GripVertical, Pencil, Plus, Trash2, X } from 'lucide-react'
 
 // 設定ページの「ステータス／営業担当／提案商材／ジャンル」は
 // 一覧＋削除＋末尾に追加、という同じ形なのでここにまとめている。
@@ -20,15 +20,26 @@ type Props = {
   onReorder?: (id: string, newOrder: number) => void
   /** 右端に「順N」を出すか */
   showOrderNumber?: boolean
+  /** 渡すと名前の変更（鉛筆ボタン）を出す */
+  onRename?: (id: string, name: string) => void | Promise<void>
+  /** ページ内リンク用 */
+  id?: string
 }
 
 const inputClass =
-  'flex-1 border border-slate-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500'
+  'flex-1 min-w-0 border border-slate-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500'
 
 export default function MasterListCard({
-  title, description, items, placeholder, saving, onAdd, onDelete, onReorder, showOrderNumber,
+  title, description, items, placeholder, saving, onAdd, onDelete, onReorder, showOrderNumber, onRename, id,
 }: Props) {
   const [newName, setNewName] = useState('')
+  const [editing, setEditing] = useState<{ id: string; name: string } | null>(null)
+
+  const handleRename = async () => {
+    if (!editing || !onRename || !editing.name.trim()) return
+    await onRename(editing.id, editing.name.trim())
+    setEditing(null)
+  }
 
   const handleAdd = async () => {
     if (!newName.trim()) return
@@ -37,7 +48,7 @@ export default function MasterListCard({
   }
 
   return (
-    <div className="premium-card rounded-2xl p-5">
+    <div id={id} className="premium-card rounded-2xl p-5 scroll-mt-20">
       <h3 className={`text-sm font-semibold text-slate-700 ${description ? 'mb-1' : 'mb-4'}`}>{title}</h3>
       {description && <p className="text-xs text-slate-400 mb-4">{description}</p>}
 
@@ -45,7 +56,31 @@ export default function MasterListCard({
         {items.map(item => (
           <div key={item.id} className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-50 group">
             {onReorder && <GripVertical size={14} className="text-slate-300 shrink-0" />}
-            <span className="flex-1 text-sm text-slate-700">{item.name}</span>
+            {editing?.id === item.id ? (
+              <span className="flex-1 flex items-center gap-1 min-w-0">
+                <input
+                  autoFocus
+                  value={editing.name}
+                  onChange={e => setEditing({ id: item.id, name: e.target.value })}
+                  onKeyDown={e => { if (e.key === 'Enter') handleRename(); if (e.key === 'Escape') setEditing(null) }}
+                  className={inputClass}
+                  aria-label="新しい名前"
+                />
+                <button onClick={handleRename} disabled={saving} aria-label="名前を保存" className="text-emerald-600 p-1 shrink-0"><Check size={15} /></button>
+                <button onClick={() => setEditing(null)} aria-label="やめる" className="text-slate-400 p-1 shrink-0"><X size={15} /></button>
+              </span>
+            ) : (
+              <span className="flex-1 min-w-0 text-sm text-slate-700 break-words">{item.name}</span>
+            )}
+            {onRename && editing?.id !== item.id && (
+              <button
+                onClick={() => setEditing({ id: item.id, name: item.name })}
+                aria-label="名前を変える"
+                className="opacity-100 md:opacity-0 md:group-hover:opacity-100 text-slate-300 hover:text-blue-500 transition shrink-0"
+              >
+                <Pencil size={13} />
+              </button>
+            )}
             {onReorder && (
               <div className="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition">
                 <button

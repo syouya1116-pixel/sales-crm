@@ -6,7 +6,7 @@
 --     CREATE POLICY "service_only" ON companies FOR ALL USING (true);
 -- と書かれていたが、TO 句がないため PUBLIC（= anon キー）にも適用されていた。
 -- anon キーはブラウザに配信される＝誰でも入手できるため、ログインなしで
--- 顧客 17,054 件・メール 9,834 件・電話 8,904 件・個人メモ・admin_users まで
+-- 顧客1万件超・メール・電話・個人メモ・admin_users まで
 -- 読み書きできる状態だった（21 テーブル中 17 テーブルが露出）。
 --
 -- 【方針】全テーブルを「authenticated ロールのみ許可」に統一する。
@@ -26,9 +26,12 @@
 --            全テーブルで RLS を有効化する。
 --            （Supabase 管理画面で作られた名前不明のポリシーも巻き取るため）
 --            ここまでの状態では誰も読めない。必ずブロック2 まで続けて実行する。
+--            ただし、自分のSQLファイルでポリシーを作っている表（feature_flags・kpi_*・
+--            demo_settings）は消さない。消すと、このファイルを最後に流したときに読めなくなる。
 -- ---------------------------------------------------------------
 DO $$ DECLARE r record; BEGIN
-FOR r IN SELECT tablename, policyname FROM pg_policies WHERE schemaname='public' LOOP
+FOR r IN SELECT tablename, policyname FROM pg_policies WHERE schemaname='public'
+  AND tablename NOT IN ('feature_flags','kpi_targets','kpi_holidays','kpi_carry_base','demo_settings') LOOP
 EXECUTE 'DROP POLICY ' || quote_ident(r.policyname) || ' ON ' || quote_ident(r.tablename);
 END LOOP;
 FOR r IN SELECT tablename FROM pg_tables WHERE schemaname='public' LOOP

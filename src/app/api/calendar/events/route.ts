@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { google } from 'googleapis'
 import { createClient } from '@supabase/supabase-js'
 import { requireAuth } from '@/lib/requireAuth'
+import { IS_DEMO, demoExternalId } from '@/lib/demo'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -11,20 +12,20 @@ const supabaseAdmin = createClient(
 export async function POST(req: NextRequest) {
   const { error, session } = await requireAuth()
   if (error) return error
-  if (!session?.accessToken) return NextResponse.json({ error: 'ログインが必要です' }, { status: 401 })
+  if (!IS_DEMO && !session?.accessToken) return NextResponse.json({ error: 'ログインが必要です' }, { status: 401 })
 
   const { companyId, title, startAt, endAt, force } = await req.json()
   if (!companyId || !title || !startAt || !endAt) {
     return NextResponse.json({ error: '必須項目が不足しています' }, { status: 400 })
   }
 
-  // Googleカレンダーにイベント作成
+  // Googleカレンダーにイベント作成（デモではカレンダーに触らず、アポだけ保存する）
   const oauth2Client = new google.auth.OAuth2()
-  oauth2Client.setCredentials({ access_token: session.accessToken })
+  if (!IS_DEMO) oauth2Client.setCredentials({ access_token: session!.accessToken })
   const calendar = google.calendar({ version: 'v3', auth: oauth2Client })
 
   // 重複チェック（force=true の場合はスキップ）
-  if (!force) {
+  if (!IS_DEMO && !force) {
     const existing = await calendar.events.list({
       calendarId: 'primary',
       timeMin: startAt,
@@ -41,7 +42,8 @@ export async function POST(req: NextRequest) {
   }
 
   let googleEventId: string | null = null
-  try {
+  if (IS_DEMO) googleEventId = demoExternalId('event')
+  else try {
     const event = await calendar.events.insert({
       calendarId: 'primary',
       requestBody: {
@@ -80,7 +82,7 @@ export async function POST(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   const { error, session } = await requireAuth()
   if (error) return error
-  if (!session?.accessToken) return NextResponse.json({ error: 'ログインが必要です' }, { status: 401 })
+  if (!IS_DEMO && !session?.accessToken) return NextResponse.json({ error: 'ログインが必要です' }, { status: 401 })
 
   const { appointmentId, googleEventId, title, startAt, endAt } = await req.json()
   if (!appointmentId || !title || !startAt || !endAt) {
@@ -97,8 +99,8 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: '編集権限がありません' }, { status: 403 })
   }
 
-  // Googleカレンダーを更新（google_event_idがある場合のみ）
-  if (googleEventId) {
+  // Googleカレンダーを更新（google_event_idがある場合のみ。デモでは触らない）
+  if (!IS_DEMO && googleEventId) {
     try {
       const oauth2Client = new google.auth.OAuth2()
       oauth2Client.setCredentials({ access_token: session.accessToken })

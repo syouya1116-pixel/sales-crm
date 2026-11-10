@@ -43,4 +43,25 @@ npm test                     # 単体テスト
 npm run lint                 # 静的チェック
 ```
 
-DB は Supabase に `supabase-schema.sql` → `supabase-rls.sql` → そのほかの `supabase-*.sql` の順で流します。
+DB は Supabase に次の順で流します。
+
+1. `supabase-schema.sql` → `supabase-schema-extra.sql`
+2. そのほかの `supabase-*.sql`（`supabase-demo-settings.sql` はデモ用なので、デモを作るときだけ）
+3. 最後に `supabase-rls.sql`
+
+## デモ版
+
+`NEXT_PUBLIC_DEMO_MODE=1` で起動すると、架空データで触れるデモになります（本番とは別の Supabase プロジェクトを使用）。
+
+- **ワンクリックでログイン**：管理者・業務委託スタッフのどちらの画面でも入れる
+- **外部送信なし**：メール送信・カレンダー登録は記録だけ残し、Google には送らない
+- **毎晩初期化**：`/api/demo/reset` を Vercel Cron で実行し、架空の顧客360社・送信履歴・アポを作り直す（`src/lib/demoSeed.ts`）
+- **設定画面がCMSになる**（管理者のみ）
+  - 会社名・システム名・ロゴ・テーマカラー（7色）
+  - 全画面に出すお知らせバナー
+  - サイドバーのメニューの表示・非表示
+  - 顧客一覧の列の表示・並び順
+  - チーム（名前・メール・色・並び順・追加削除）・ステータス（名前・色・並び順）・月ごとのKPI目標
+  - 商材・ジャンルの名前変更、メールテンプレートの差し込み変数とプレビュー
+
+見た目の設定は `demo_settings` 表に JSON 1行で持ち、サーバー側で読んでから描画するので、読み込み時に色や名前がちらつきません（`src/lib/siteSettings*.ts`・`src/components/SiteSettingsProvider.tsx`）。テーマカラーは Tailwind 4 の CSS 変数（`--color-indigo-*`）を差し替えて全画面に効かせています。

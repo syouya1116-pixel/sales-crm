@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { requireAuth } from '@/lib/requireAuth'
 import { emailToName } from '@/lib/emailToName'
 import { soleProposalProductId } from '@/lib/proposalProductForLog'
+import { IS_DEMO, demoExternalId } from '@/lib/demo'
 
 function makeRawEmail(to: string, subject: string, body: string, from: string) {
   const name = emailToName(from)
@@ -25,21 +26,28 @@ function makeRawEmail(to: string, subject: string, body: string, from: string) {
 export async function POST(req: NextRequest) {
   const { error, session } = await requireAuth()
   if (error) return error
-  if (!session?.accessToken) return NextResponse.json({ error: 'ログインが必要です' }, { status: 401 })
+  if (!IS_DEMO && !session?.accessToken) return NextResponse.json({ error: 'ログインが必要です' }, { status: 401 })
 
   const payload = await req.json()
   const { companyId, companyEmailId, toEmail, subject, body } = payload
 
-  const oauth2Client = new google.auth.OAuth2()
-  oauth2Client.setCredentials({ access_token: session.accessToken })
-  const gmail = google.gmail({ version: 'v1', auth: oauth2Client })
+  // デモでは実際には送らず、送ったことにして履歴だけ残す
+  let messageId: string | null
+  if (IS_DEMO) {
+    messageId = demoExternalId('mail')
+  } else {
+    const oauth2Client = new google.auth.OAuth2()
+    oauth2Client.setCredentials({ access_token: session!.accessToken })
+    const gmail = google.gmail({ version: 'v1', auth: oauth2Client })
 
-  const raw = makeRawEmail(toEmail, subject, body, session.user?.email || '')
+    const raw = makeRawEmail(toEmail, subject, body, session!.user?.email || '')
 
-  const result = await gmail.users.messages.send({
-    userId: 'me',
-    requestBody: { raw },
-  })
+    const result = await gmail.users.messages.send({
+      userId: 'me',
+      requestBody: { raw },
+    })
+    messageId = result.data.id || null
+  }
 
   // 送信履歴をSupabaseに保存。
   // 個別送信はテンプレートを介さないので、画面で商材を選んでいればそれを使い、
@@ -55,9 +63,9 @@ export async function POST(req: NextRequest) {
     company_email_id: companyEmailId || null,
     subject,
     sent_by: session.user?.email || null,
-    gmail_message_id: result.data.id || null,
+    gmail_message_id: messageId,
     proposal_product_id: proposalProductId,
   })
 
-  return NextResponse.json({ success: true, messageId: result.data.id })
+  return NextResponse.json({ success: true, messageId })
 }

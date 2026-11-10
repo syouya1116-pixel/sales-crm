@@ -13,5 +13,11 @@ export const STATUS_COLORS: Record<string, string> = {
   '禁止':     'bg-red-50 text-red-700 ring-1 ring-red-200',
 }
 
+// デモの設定画面で選んだ色（ステータス名 → クラス）。SiteSettingsProvider が入れる
+let overrides: Record<string, string> = {}
+export function setStatusColorOverrides(map: Record<string, string>) {
+  overrides = map
+}
+
 export const statusColor = (name: string): string =>
-  STATUS_COLORS[name] || 'bg-slate-100 text-slate-600'
+  overrides[name] || STATUS_COLORS[name] || 'bg-slate-100 text-slate-600'

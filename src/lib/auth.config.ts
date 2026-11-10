@@ -1,6 +1,8 @@
 import type { NextAuthConfig } from 'next-auth'
 import Google from 'next-auth/providers/google'
+import Credentials from 'next-auth/providers/credentials'
 import { createSupabaseAccessToken } from './supabaseJwt'
+import { IS_DEMO, DEMO_ADMIN_EMAIL, DEMO_ADMIN_NAME } from './demo'
 
 // middleware（Edge Runtime）からも読み込まれる設定。
 // Edge では Node の 'crypto' などが使えないため、
@@ -22,11 +24,23 @@ export const authConfig = {
         },
       },
     }),
+    // デモ環境だけ：ワンクリックで架空の管理者としてログインする（src/lib/demo.ts）
+    ...(IS_DEMO
+      ? [
+          Credentials({
+            id: 'demo',
+            name: 'Demo',
+            credentials: {},
+            authorize: () => ({ id: DEMO_ADMIN_EMAIL, email: DEMO_ADMIN_EMAIL, name: DEMO_ADMIN_NAME, role: 'google' as const }),
+          }),
+        ]
+      : []),
   ],
   callbacks: {
     async signIn({ user, account }) {
       // スタッフ（Credentials）は authorize で検証済みなので許可
       if (account?.provider === 'staff') return true
+      if (account?.provider === 'demo') return IS_DEMO
       // Google はホワイトリストにないメールはログイン拒否
       return allowedEmails.includes(user.email || '')
     },
@@ -37,6 +51,13 @@ export const authConfig = {
         return token
       }
       if (token.role === 'staff') return token
+
+      // デモの管理者：Google のトークンを持たないので、更新処理も通さない
+      if (account?.provider === 'demo' || token.demo) {
+        token.role = 'google'
+        token.demo = true
+        return token
+      }
 
       token.role = 'google'
       if (account) {

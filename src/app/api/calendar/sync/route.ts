@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { google } from 'googleapis'
 import { createClient } from '@supabase/supabase-js'
 import { requireAuth } from '@/lib/requireAuth'
+import { IS_DEMO } from '@/lib/demo'
 import { emailToName } from '@/lib/emailToName'
 
 const supabaseAdmin = createClient(
@@ -18,6 +19,8 @@ function extractCompanyName(title: string): string {
 export async function POST() {
   const { error, session } = await requireAuth()
   if (error) return error
+  // デモでは Google カレンダーを読まない（既存のアポもそのまま残す）
+  if (IS_DEMO) return NextResponse.json({ synced: 0, demo: true })
   if (!session?.accessToken) return NextResponse.json({ error: 'ログインが必要です' }, { status: 401 })
 
   const oauth2Client = new google.auth.OAuth2()

@@ -7,9 +7,15 @@ export const EMAIL_NAME_MAP: Record<string, string> = Object.fromEntries(
 // テンプレートの所有者セレクト用。email をキーに持たせたいので配列にして順序を固定する
 export const ACCOUNTS = Object.entries(EMAIL_NAME_MAP).map(([email, name]) => ({ email, name }))
 
+// デモの設定画面で営業担当の名前を変えたときの上書き（メール → 名前）。SiteSettingsProvider が入れる
+let nameOverrides: Record<string, string> = {}
+export function setNameOverrides(map: Record<string, string>) {
+  nameOverrides = map
+}
+
 export function emailToName(email: string | null | undefined): string {
   if (!email) return ''
-  return EMAIL_NAME_MAP[email] ?? email
+  return nameOverrides[email] ?? EMAIL_NAME_MAP[email] ?? email
 }
 
 const NAME_EMAIL_MAP: Record<string, string> = Object.fromEntries(

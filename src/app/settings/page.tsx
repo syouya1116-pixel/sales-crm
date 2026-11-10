@@ -9,6 +9,9 @@ import { ACCOUNTS, emailToName } from '@/lib/emailToName'
 import MasterListCard from '@/components/settings/MasterListCard'
 import HolidayCard from '@/components/settings/HolidayCard'
 import { RESEND_ALLOWED_EMAILS } from '@/lib/featureFlags'
+import { IS_DEMO } from '@/lib/demo'
+import DemoCms, { DemoCmsNav } from '@/components/settings/demo/DemoCms'
+import TemplateAssist from '@/components/settings/demo/TemplateAssist'
 
 type Status = { id: string; name: string; sort_order: number }
 type SalesRep = { id: string; name: string }
@@ -285,6 +288,17 @@ export default function SettingsPage() {
     setGenres(prev => prev.map(g => g.id === id ? { ...g, sort_order: newOrder } : g).sort((a, b) => a.sort_order - b.sort_order))
   }
 
+  // 商材・ジャンルの名前変更（デモの設定画面だけで出す）
+  const renameMaster = async (table: 'proposal_products' | 'genres', id: string, name: string) => {
+    setSaving(true)
+    const { error } = await supabase.from(table).update({ name }).eq('id', id)
+    setSaving(false)
+    if (error) { alert('変更できませんでした（同じ名前があります）'); return }
+    const apply = <T extends { id: string; name: string }>(prev: T[]) => prev.map(x => x.id === id ? { ...x, name } : x)
+    if (table === 'genres') setGenres(apply)
+    else setProposalProducts(apply)
+  }
+
   // 管理者
   const addAdminUser = async () => {
     if (!newAdminEmail.trim()) return; setSaving(true)
@@ -346,7 +360,7 @@ export default function SettingsPage() {
     setSavingTarget(false)
   }
 
-  const inputClass = "flex-1 border border-slate-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+  const inputClass = "flex-1 min-w-0 border border-slate-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
 
   if (status === 'loading' || !adminChecked || !isAdmin) return null
 
@@ -355,9 +369,19 @@ export default function SettingsPage() {
       <div className="mb-6">
         <h2 className="text-xl font-bold text-slate-800">設定</h2>
         <p className="text-sm text-slate-400 mt-0.5">管理者のみアクセス可能</p>
+        {IS_DEMO && (
+          <div className="mt-4 space-y-3">
+            <p className="text-xs text-slate-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 leading-relaxed">
+              デモでは、会社名・色・メニュー・一覧の列・チーム・ステータス・KPIなどを自由に変えられます。変更は全員の画面に反映され、毎日の初期化で元に戻ります。
+            </p>
+            <DemoCmsNav />
+          </div>
+        )}
       </div>
 
       <div className="space-y-6">
+        {IS_DEMO && <DemoCms />}
+
         <div className="premium-card rounded-2xl p-5">
           <h3 className="text-sm font-semibold text-slate-700 mb-1">機能の公開設定</h3>
           <p className="text-xs text-slate-400 mb-4">オフにすると、対象の画面から項目ごと消えます</p>
@@ -381,7 +405,7 @@ export default function SettingsPage() {
           </label>
         </div>
 
-        <MasterListCard
+        {!IS_DEMO && <MasterListCard
           title="ステータス"
           items={statuses}
           placeholder="新しいステータス名"
@@ -390,16 +414,16 @@ export default function SettingsPage() {
           onDelete={deleteStatus}
           onReorder={updateStatusOrder}
           showOrderNumber
-        />
+        />}
 
-        <MasterListCard
+        {!IS_DEMO && <MasterListCard
           title="営業担当"
           items={salesReps}
           placeholder="担当者名"
           saving={saving}
           onAdd={addRep}
           onDelete={deleteRep}
-        />
+        />}
 
         <MasterListCard
           title="提案商材"
@@ -410,6 +434,8 @@ export default function SettingsPage() {
           onDelete={deleteProduct}
           onReorder={updateProductOrder}
           showOrderNumber
+          id="cms-master"
+          onRename={IS_DEMO ? (id, name) => renameMaster('proposal_products', id, name) : undefined}
         />
 
         <MasterListCard
@@ -421,6 +447,7 @@ export default function SettingsPage() {
           onAdd={addGenre}
           onDelete={deleteGenre}
           onReorder={updateGenreOrder}
+          onRename={IS_DEMO ? (id, name) => renameMaster('genres', id, name) : undefined}
         />
 
         {/* 管理者アカウント */}
@@ -463,7 +490,7 @@ export default function SettingsPage() {
             ))}
           </div>
           <div className="space-y-2 bg-slate-50 rounded-xl p-3">
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-2">
               <input type="text" value={newStaffName} onChange={e => setNewStaffName(e.target.value)} placeholder="表示名（例：山田 太郎）" className={inputClass} />
               <input type="text" value={newStaffLoginId} onChange={e => setNewStaffLoginId(e.target.value)} placeholder="ログインID" autoCapitalize="none" className={inputClass} />
             </div>
@@ -519,13 +546,13 @@ export default function SettingsPage() {
                 <div key={a.id} className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-50 group">
                   <span className="flex-1 text-sm text-slate-700">{a.csv_header}</span>
                   <span className="text-xs text-slate-400">→</span>
-                  <span className="text-sm text-indigo-600 w-32 shrink-0">{FIELD_KEY_LABELS[a.field_key] || a.field_key}</span>
+                  <span className="text-sm text-indigo-600 w-24 sm:w-32 shrink-0">{FIELD_KEY_LABELS[a.field_key] || a.field_key}</span>
                   <button onClick={() => deleteAlias(a.id)} className="opacity-100 md:opacity-0 md:group-hover:opacity-100 text-slate-300 hover:text-red-400 transition shrink-0"><Trash2 size={13} /></button>
                 </div>
               ))}
             </div>
           )}
-          <div className="flex gap-2">
+          <div className="flex flex-wrap sm:flex-nowrap gap-2">
             <input type="text" value={newAliasCsvHeader} onChange={e => setNewAliasCsvHeader(e.target.value)} placeholder="スプシのヘッダー名（例：HP）" className={inputClass} />
             <select value={newAliasFieldKey} onChange={e => setNewAliasFieldKey(e.target.value)} className="border border-slate-200 rounded-lg px-3 py-2 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
               <option value="">対応するフィールド</option>
@@ -536,7 +563,7 @@ export default function SettingsPage() {
         </div>
 
         {/* 一斉送信テンプレート */}
-        <div className="premium-card rounded-2xl p-5">
+        <div id="cms-templates" className="premium-card rounded-2xl p-5 scroll-mt-20">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-semibold text-slate-700">一斉送信テンプレート</h3>
             <button onClick={() => { if (!showTemplateForm) setNewTemplateOwner(session?.user?.email ?? ''); setShowTemplateForm(!showTemplateForm) }} className="flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 border border-blue-200 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition">
@@ -548,6 +575,7 @@ export default function SettingsPage() {
               <input type="text" value={newTemplateName} onChange={e => setNewTemplateName(e.target.value)} placeholder="テンプレート名（例：初回アプローチ）" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500" />
               <input type="text" value={newTemplateSubject} onChange={e => setNewTemplateSubject(e.target.value)} placeholder="件名（差し込み変数: {{会社名}} など）" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500" />
               <textarea rows={6} value={newTemplateBody} onChange={e => setNewTemplateBody(e.target.value)} placeholder="本文" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
+              {IS_DEMO && <TemplateAssist subject={newTemplateSubject} body={newTemplateBody} onInsert={v => setNewTemplateBody(b => b + v)} />}
               <select value={newTemplateProductId} onChange={e => setNewTemplateProductId(e.target.value)} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <option value="">提案商材（任意）</option>
                 {proposalProducts.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -576,6 +604,7 @@ export default function SettingsPage() {
                       <input type="text" value={editingTemplate.name} onChange={e => setEditingTemplate({ ...editingTemplate, name: e.target.value })} placeholder="テンプレート名" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500" />
                       <input type="text" value={editingTemplate.subject} onChange={e => setEditingTemplate({ ...editingTemplate, subject: e.target.value })} placeholder="件名" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500" />
                       <textarea rows={5} value={editingTemplate.body} onChange={e => setEditingTemplate({ ...editingTemplate, body: e.target.value })} placeholder="本文" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
+                      {IS_DEMO && <TemplateAssist subject={editingTemplate.subject} body={editingTemplate.body} onInsert={v => setEditingTemplate({ ...editingTemplate, body: editingTemplate.body + v })} />}
                       <select value={editingTemplate.proposal_product_id || ''} onChange={e => setEditingTemplate({ ...editingTemplate, proposal_product_id: e.target.value || null })} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500">
                         <option value="">提案商材（任意）</option>
                         {proposalProducts.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
