@@ -1,4 +1,5 @@
 {
-  "regions": ["hnd1"],
-  "crons": [{ "path": "/api/demo/reset", "schedule": "0 18 * * *" }]
+  "regions": [
+    "hnd1"
+  ]
 }

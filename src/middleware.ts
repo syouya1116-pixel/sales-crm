@@ -16,7 +16,23 @@ const allowedEmails = (process.env.ALLOWED_EMAILS || '').split(',').map(e => e.t
 // ここには足さないこと（前方一致で巻き込まないよう完全パスで書いている）。
 const STAFF_ALLOWED = ['/staff', '/companies/new', '/api/staff/form-queue']
 
+// 11/13〜 デモは「画面のモック」（public/mock/ の静的ページ）だけを見せる。Supabase もログインも使わない。
+// 元の動くデモに戻すときは、この MOCK_PAGES の分岐を外す（ほかの作りはそのまま残してある）
+const MOCK_PAGES: Record<string, string> = {
+  '/': 'index', '/bulk-send': 'bulk-send', '/tasks': 'tasks', '/appointments': 'appointments', '/analytics': 'analytics',
+  '/sales-board': 'sales-board', '/import': 'import', '/memos': 'memos', '/settings': 'settings',
+}
+function mockResponse(req: Request & { nextUrl: URL }) {
+  const p = req.nextUrl.pathname.replace(/\/+$/, '') || '/'
+  if (p.startsWith('/mock/')) return NextResponse.next()
+  if (p.startsWith('/api/')) return NextResponse.json({ error: 'このデモは画面のモックのため、操作はできません' }, { status: 404 })
+  const name = p.startsWith('/companies/') ? 'company' : MOCK_PAGES[p]
+  if (!name) return NextResponse.redirect(new URL('/', req.nextUrl))
+  return NextResponse.rewrite(new URL(`/mock/${name}.html`, req.nextUrl))
+}
+
 export default auth((req) => {
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === '1') return mockResponse(req)
   const { nextUrl, auth: session } = req
   const email = session?.user?.email || ''
   const role = session?.user?.role
